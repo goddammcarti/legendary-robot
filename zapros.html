@@ -1,0 +1,897 @@
+  
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="initial-scale=1.0001, minimum-scale=1.0001, maximum-scale=1.0001, user-scalable=no"
+        />
+        <meta name="viewport" content="width=device-width" />
+        <title>SWAPI App</title>
+
+       <style>
+
+
+body {
+    font-family: helvetica, arial, sans-serif;
+    font-size: 20px;
+    color: #333;
+    margin: 0;
+}
+
+#container {
+    width: 100%;
+    margin-top: 200px;
+}
+
+
+.hidden {
+    display: none;
+}
+
+.btn {
+    border: 1px solid #333;
+    border-radius: 3px;
+    background-color: white;
+    font-size: inherit;
+}
+
+.btn:hover {
+    background-color: #9bc2cf;
+}
+
+
+.nav {
+    left: 0;
+    right: 0;
+    top: 0;
+    box-sizing: border-box;
+    padding: 10px;
+    height: 200px;
+    background-color: #ddd;
+    position: fixed;
+    border-bottom: 2px solid white;
+}
+
+.nav .title {
+    float: left;
+}
+
+.nav .title h1 {
+    margin: 0;
+    padding-bottom: 10px;
+}
+
+.nav .links {
+    float: left;
+}
+
+.nav .links ul {
+    margin: 0;
+    padding: 0;
+    list-style-type: none;
+}
+
+.nav .links ul li {
+    margin-bottom: 5px;
+}
+
+
+
+.loading_bar_wrapper {
+    box-sizing: border-box;
+    width: 100%;
+    height: 5px;
+    border: 1px solid #ddd;
+    margin: 0 auto;
+}
+
+.loading_bar {
+    height: 100%;
+    background-color: lightblue;
+}
+
+
+
+.section_container {
+    margin-bottom: 10px;
+    width: 100%;
+
+}
+
+.section_container table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.section_container table td {
+    padding: 10px;
+}
+
+.data_item {
+    background-color: #ddd;
+    border-bottom: 1px solid white;
+}
+
+.data_item .field {
+    text-transform: capitalize;
+}
+
+.section_container h2 {
+    margin: 5px;
+    padding: 10px;
+    text-transform: capitalize;
+}
+
+
+
+.heading {
+    padding: 10px;
+}
+
+.heading .title {
+    display: inline-block;
+}
+
+.heading .title h2 {
+    margin: 0;
+    padding: 0;
+}
+
+.heading .action {
+    float: right;
+}
+
+.associated .data_item {
+    padding: 20px;
+}
+
+.associated .data_item .view {
+    float: right;
+}
+
+.associated .data_item:hover {
+    cursor: pointer;
+    background-color: lightblue;
+}
+
+.associated .data_item:hover .btn {
+    background-color: #9bc2cf;
+}
+
+
+@media screen and (min-width: 400px) {
+    .nav {
+        height: 150px;
+    }
+
+    #container {
+        margin-top: 150px;
+    }
+}
+
+@media screen and (min-width: 750px) {
+    body {
+        font-size: 16px;
+    }
+
+    .nav {
+        height: 65px;
+    }
+
+    .nav .links {
+        margin-left: 20px;
+    }
+
+    #container {
+        margin: 65px auto 0;
+        width: 500px;
+    }
+
+    .associated .data_item {
+        padding: 10px;
+    }
+
+    .associated .data_item .view .view_entity {
+        display: none;
+    }
+
+    .associated .data_item:hover .view .view_entity {
+        display: inline-block;
+    }
+}
+       </style>
+        <link href="css/styles.css?v=2" rel="stylesheet" />
+    </head>
+    <body>
+
+        <div id="container">
+            <div class="loading_bar_wrapper">
+                <div class="loading_bar" style="width: 0"></div>
+            </div>
+            <div id="data"></div>
+            <div id="associated"></div>
+        </div>
+
+        
+        <script>
+            function Entity(
+    data,
+    arr_data_fields,
+    arr_associated_fields,
+    heading_field,
+    type
+) {
+    this.arr_data_fields = arr_data_fields;
+    this.arr_associated_fields = arr_associated_fields;
+    this.type = type;
+
+    this.data = {};
+    this.associated = {};
+    this.heading_field = heading_field;
+
+    if (this.heading_field !== "name") {
+        this.data.name = data[this.heading_field];
+    }
+
+    var this_entity = this;
+
+
+    for (var data_item of this.arr_data_fields) {    
+        if (data.hasOwnProperty(data_item)) {
+            this.data[data_item] = data[data_item];
+        }
+    }
+
+ 
+    for (var obj_associated of this.arr_associated_fields) {
+        var title = Object.keys(obj_associated)[0];
+        var type = obj_associated[title];
+
+        if (data.hasOwnProperty(title)) {
+       
+            this.associated[type] = [];
+
+            for (var url of data[title]) {
+                
+                this.associated[type].push(getIdFromURL(url));
+            }
+
+            if (!this.associated[type].length) {
+                delete this.associated[type];
+            }
+        }
+    }
+
+ 
+
+    this.printData = function() {
+        var html = `<div class="section_container" data-entity="${this.type}">`;
+        html += `<div class="heading"><div class="title"><h2>${
+            this.data[this.heading_field]
+        }</h2></div>`;
+        html += `<div class="action"><button class="btn view_all" data-entity="${
+            this.type
+        }">View all ${this.type}</button></div></div>`;
+        html += `<table><tbody>`;
+
+        for (var key in this.data) {
+           
+            if (key === this.heading_field || key === "name") {
+                continue;
+            }
+
+            var field = key.replace(/_/g, " ");
+
+            html +=
+                '<tr class="data_item"><td class="field">' +
+                field +
+                "</td>" +
+                '<td class="value">' +
+                this.data[key] +
+                "</td></tr>";
+        }
+
+        html += "</tbody></table>";
+
+       
+        document.getElementById("data").innerHTML = html;
+    };
+
+
+    this.printAssociatedFields = function() {
+        var html = "";
+        var swapi = getFromSession("swapi");
+
+       
+        for (var type in this.associated) {
+            html += printAssociatedEntities(type, this.associated[type]);
+        }
+
+        document.getElementById("associated").innerHTML = html;
+
+        addEventListeners(
+            ".associated .data_item",
+            "click",
+            associatedClickhandler
+        );
+
+        addEventListeners(".view_all", "click", viewAllClickhandler);
+    };
+}
+
+
+
+function Person(data) {
+    var arr_data_fields = [
+        "birth_year",
+        "eye_color",
+        "gender",
+        "hair_color",
+        "height",
+        "mass",
+        "name",
+        "skin_color"
+    ];
+
+    var arr_associated_fields = [
+        { films: "films" },
+        { species: "species" },
+        { starships: "starships" },
+        { vehicles: "vehicles" }
+    ];
+
+    var heading_field = "name";
+
+    Entity.call(
+        this,
+        data,
+        arr_data_fields,
+        arr_associated_fields,
+        heading_field,
+        "people"
+    );
+}
+
+
+
+function Starship(data) {
+    var arr_data_fields = [
+        "MGLT",
+        "cargo_capacity",
+        "consumables",
+        "cost_in_credits",
+        "crew",
+        "hyperdrive_rating",
+        "length",
+        "manufacturer",
+        "max_atmospheric_speed",
+        "model",
+        "name",
+        "passengers",
+        "starship_class"
+    ];
+
+    var arr_associated_fields = [{ films: "films" }, { pilots: "people" }];
+
+    var heading_field = "name";
+
+    Entity.call(
+        this,
+        data,
+        arr_data_fields,
+        arr_associated_fields,
+        heading_field,
+        "starships"
+    );
+}
+
+
+function Film(data) {
+    var arr_data_fields = [
+        "director",
+        "episode_id",
+        "opening_crawl",
+        "producer",
+        "release_date",
+        "title"
+    ];
+
+    var arr_associated_fields = [
+        { characters: "people" },
+        { planets: "planets" },
+        { species: "species" },
+        { starships: "starships" },
+        { vehicles: "vehicles" }
+    ];
+
+    var heading_field = "title";
+
+    Entity.call(
+        this,
+        data,
+        arr_data_fields,
+        arr_associated_fields,
+        heading_field,
+        "films"
+    );
+}
+
+
+
+function Planet(data) {
+    var arr_data_fields = [
+        "climate",
+        "diameter",
+        "gravity",
+        "name",
+        "orbital_period",
+        "population",
+        "rotation_period",
+        "surface_water",
+        "terrain"
+    ];
+
+    var arr_associated_fields = [{ films: "films" }, { residents: "people" }];
+
+    var heading_field = "name";
+
+    Entity.call(
+        this,
+        data,
+        arr_data_fields,
+        arr_associated_fields,
+        heading_field,
+        "planets"
+    );
+}
+
+
+
+function Species(data) {
+    var arr_data_fields = [
+        "average_height",
+        "average_lifespan",
+        "classification",
+        "designation",
+        "eye_colors",
+        "hair_colors",
+        "language",
+        "name",
+        "skin_colors"
+    ];
+
+    var arr_associated_fields = [{ films: "films" }, { people: "people" }];
+
+    var heading_field = "name";
+
+    Entity.call(
+        this,
+        data,
+        arr_data_fields,
+        arr_associated_fields,
+        heading_field,
+        "species"
+    );
+}
+
+
+
+function Vehicle(data) {
+    var arr_data_fields = [
+        "cargo_capacity",
+        "consumables",
+        "cost_in_credits",
+        "crew",
+        "length",
+        "manufacturer",
+        "max_atmosphering_speed",
+        "model",
+        "name",
+        "passengers",
+        "vehicle_class"
+    ];
+
+    var arr_associated_fields = [{ films: "films" }, { pilots: "people" }];
+
+    var heading_field = "name";
+
+    Entity.call(
+        this,
+        data,
+        arr_data_fields,
+        arr_associated_fields,
+        heading_field,
+        "vehicles"
+    );
+}
+        </script>
+
+        <script>
+
+
+function createCORSRequest(method, url) {
+  var xhr = new XMLHttpRequest();
+  if ("withCredentials" in xhr) {
+
+    xhr.open(method, url, true);
+
+  } else if (typeof XDomainRequest != "undefined") {
+
+ 
+    xhr = new XDomainRequest();
+    xhr.open(method, url);
+
+  } else {
+
+    xhr = null;
+
+  }
+  return xhr;
+}
+
+
+
+function getXHR(url) {
+    var xhr_promise = new Promise(function(resolve, reject) {
+        var xhr = createCORSRequest('GET', url);
+        if (!xhr) {
+            throw new Error('CORS not supported');
+        }
+
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState > 3) {
+               
+                if (xhr.status == 200) {
+                    resolve(xhr.responseText);
+                }
+
+                reject(xhr.status);
+            }
+        };
+
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+        xhr.send();
+        return xhr;
+    });
+
+    return xhr_promise;
+}
+
+
+
+function getData(type, id) {
+    return new Promise(function(resolve, reject) {
+        
+        var swapi = getFromSession("swapi");
+        
+        if (swapi[type].hasOwnProperty(id)) {
+            resolve(swapi[type][id]);
+
+        } else {
+          
+            getXHR("https://swapi.dev/api/" + type + "/" + id + "/")
+                .then(function(res) {
+                  
+                    var data = JSON.parse(res);
+
+                   
+                    updateSwapiData(type, id, data);
+
+                    var entity = instantiate(type, data);
+
+             
+                    resolve(entity);
+                })
+                .catch(function(err) {
+                    
+                    reject(err);
+                });
+        }
+    });
+}
+
+
+
+async function getEntity(type, id) {
+    var entity;
+
+    
+    var swapi = getFromSession("swapi");
+
+   
+    if (!swapi[type].hasOwnProperty(id)) {
+       
+        var response = await getXHR(
+            "https://swapi.dev/api/" + type + "/" + id + "/"
+        );
+
+        
+        var data = JSON.parse(response);
+
+        updateSwapiData(type, id, data);
+    }
+
+    entity = getEntityFromSession(type, id);
+    return entity;
+}
+
+
+
+function instantiate(type, data) {
+    return {
+        people: function(data) {
+            return new Person(data);
+        },
+        starships: function(data) {
+            return new Starship(data);
+        },
+        films: function(data) {
+            return new Film(data);
+        },
+        planets: function(data) {
+            return new Planet(data);
+        },
+        species: function(data) {
+            return new Species(data);
+        },
+        vehicles: function(data) {
+            return new Vehicle(data);
+        }
+    }[type](data);
+}
+
+
+
+function getIdFromURL(url) {
+    var id = url.replace(/\/$/, "");
+    id = id.replace(/^.*\//, "");
+    id = parseInt(id, 10);
+   
+    return id;
+}
+
+
+
+function process(resolve, type, total, cumulative, res) {
+    var data = JSON.parse(res);
+    total = data.count;
+    cumulative += data.results.length;
+
+    for (var item of data.results) {
+        var id = getIdFromURL(item.url);
+    
+        updateSwapiData(type, id, item);
+    }
+
+    if (total > cumulative) {
+        
+        var nextPage = data.next.replace(/^http:/, "https:");
+        getXHR(nextPage).then(
+            process.bind(null, resolve, type, total, cumulative)
+        );
+    } else {
+        Window.completed_types += 1;
+        var percent = (Window.completed_types / Window.total_types) * 100;
+
+        var bar = document.querySelectorAll(".loading_bar")[0];
+        bar.setAttribute("style", "width:" + percent + "%");
+
+        resolve(type);
+    }
+}
+
+
+
+async function getAllData(callback) {
+   
+    var swapi = getFromSession("swapi");
+
+    var arr_types = [
+        "people",
+        "planets",
+        "species",
+        "starships",
+        "films",
+        "vehicles"
+    ];
+
+    
+    var has_data = arr_types.reduce(function(reducer, type) {
+        if (!swapi.hasOwnProperty(type)) {
+            return false && reducer;
+        }
+
+        
+        return Object.keys(swapi[type]).length > 0 && reducer;
+    });
+
+   
+    if (has_data) {
+        callback();
+        hideLoadingBar();
+        return false;
+    }
+
+    var swapi = {
+        people: {},
+        planets: {},
+        species: {},
+        starships: {},
+        vehicles: {},
+        films: {}
+    };
+
+    setInSession("swapi", swapi);
+
+    Window.total_types = arr_types.length;
+    Window.completed_types = 0;
+
+    var arr_promises = [];
+
+    
+    for (var type of arr_types) {
+        var total = 0;
+        var cumulative = 0;
+
+       
+        arr_promises.push(
+            new Promise(function(resolve, reject) {
+                getXHR("https://swapi.dev/api/" + type + "/")
+                    .then(process.bind(null, resolve, type, total, cumulative))
+                    .catch(function(err) {
+                        reject(err);
+                    });
+            })
+        );
+    }
+
+    Promise.all(arr_promises)
+        .then(function(values) {
+            console.log(values);
+
+            setTimeout(function() {
+                hideLoadingBar();
+            }, 100);
+
+            callback();
+        })
+        .catch(function(err) {
+            console.log(err);
+        });
+}
+
+
+
+function hideLoadingBar() {
+    var bar_wrapper = document.querySelectorAll(".loading_bar_wrapper")[0];
+    bar_wrapper.classList.add("hidden");
+}
+
+
+function getFromSession(key) {
+    var value = sessionStorage.getItem(key);
+    value = JSON.parse(value);
+    return value === null ? {} : value;
+}
+
+
+
+function setInSession(key, data) {
+    var value = JSON.stringify(data);
+    sessionStorage.setItem(key, value);
+}
+
+
+
+function updateSwapiData(type, id, data) {
+    var swapi = getFromSession("swapi");
+    swapi[type][id] = data;
+    setInSession("swapi", swapi);
+}
+
+
+function getEntityFromSession(type, id) {
+    var swapi = getFromSession("swapi");
+    return instantiate(type, swapi[type][id]);
+}
+
+
+async function printEntity(type, id) {
+    var entity = await getEntity(type, id);
+    entity.printData();
+    entity.printAssociatedFields();
+    scroll(0, 0);
+}
+
+
+
+function printAssociatedEntities(type, arr_entity_ids) {
+    var html = "";
+    var swapi = getFromSession("swapi");
+
+    html += `<div class="section_container associated" data-entity="${type}">`;
+    html += `<div class="heading"><div class="title"><h2>${type}</h2></div>`;
+    html += `<div class="action"><button class="btn view_all" data-entity="${type}">View all ${type}</button></div></div>`;
+
+    for (var id of arr_entity_ids) {
+        var value = id;
+
+        if (swapi[type].hasOwnProperty(id)) {
+            var entity = getEntityFromSession(type, id);
+            value =
+                '<span class="value">' +
+                
+                entity.data[entity.heading_field] +
+                "</span>" +
+                '<span class="view"><button class="btn view_entity">view</button></span>';
+        }
+
+        html += `<div class="data_item" data-id="${id}">${value}</div>`;
+    }
+
+    var arr_elems = document.querySelectorAll;
+
+    html += "</div>";
+    return html;
+}
+
+
+
+async function printAllEntity(type) {
+    var swapi = getFromSession("swapi");
+    var arr_entity_ids = [];
+
+    for (var key in swapi[type]) {
+        arr_entity_ids.push(key);
+    }
+
+    var html = printAssociatedEntities(type, arr_entity_ids);
+
+    document.querySelectorAll("#data")[0].innerHTML = "";
+    document.querySelectorAll("#associated")[0].innerHTML = html;
+
+    addEventListeners(
+        ".associated .data_item",
+        "click",
+        associatedClickhandler
+    );
+
+    addEventListeners(".view_all", "click", viewAllClickhandler);
+
+    scroll(0, 0);
+}
+
+
+function addEventListeners(selector, action, handler) {
+    
+    var arr_elems = document.querySelectorAll(selector);
+    var cnt_elems = arr_elems.length;
+
+    for (var idx = 0; idx < cnt_elems; idx++) {
+        var elem = arr_elems[idx];
+        elem.addEventListener(action, handler.bind(elem));
+    }
+}
+
+
+function associatedClickhandler(this_arg) {
+    printEntity(this.parentNode.dataset.entity, this.dataset.id);
+}
+
+
+function viewAllClickhandler(this_arg) {
+    printAllEntity(this.dataset.entity);
+}
+
+(async function init() {
+    console.clear();
+
+    
+    getAllData(printEntity.bind(null, "films", 1));
+    
+})();
+        </script>
+    </body>
+</html>
